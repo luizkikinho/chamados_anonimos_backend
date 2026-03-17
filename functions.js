@@ -84,7 +84,7 @@ function anonymizeUser(phoneNumber) {
 	}
 }
 
-// Função para controle de fluxo da conversa
+// Função para controle de fluxo da conversa (Máquina de Estados)
 async function handleConversation(anonymizedId, text) {
 	try {
 		if (!userStates[anonymizedId]) {
@@ -113,7 +113,7 @@ async function handleConversation(anonymizedId, text) {
 				session.step = 2; // Avança para o próximo estado
 				return "PEDIR_RELATO";
 			} else {
-				return "MENU";
+				return "OPCAO_INVALIDA";
 			}
 		}
 
