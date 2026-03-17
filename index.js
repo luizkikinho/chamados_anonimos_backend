@@ -15,7 +15,7 @@ app.post("/webhook", async (req, res) => {
 	res.status(200).json(result);
 });
 
-const PORT = 3000;
+const PORT = 8000;
 app.listen(PORT, () => {
 	console.log(`Servidor de triagem iniciado na porta ${PORT}...\n`);
 });
