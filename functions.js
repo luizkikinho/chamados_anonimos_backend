@@ -1,25 +1,26 @@
 const crypto = require("crypto");
 const supabase = require("./db");
-const botMessages = require("./messages"); // <-- 1. Importando o dicionário
+const botMessages = require("./messages");
 const userStates = {};
 
 async function processWebhook(payload) {
 	console.log("Iniciando o orquestramento de nova mensagem...");
 
-	// 1. Extrai os dados
+	// Extrai os dados
 	const data = extractData(payload);
 	if (!data) return null;
 
-	// 2. Anonimiza o remetente e salva no banco de dados
+	// Anonimiza o remetente e salva no banco de dados
 	const anonId = anonymizeUser(data.phoneNumber);
 	await saveIdentity(anonId, data.phoneNumber);
 
-	// 3. Gerencia o estado da conversa e recebe a CHAVE (ex: "MENU")
+	// Gerencia o estado da conversa e recebe a CHAVE (ex: "MENU")
 	const actionKey = await handleConversation(anonId, data.text);
 
-	// 4. Traduz a chave para o texto final e envia
-	if (actionKey && botMessages[actionKey]) {
-		const responseText = botMessages[actionKey];
+	// Traduz a chave para o texto final e envia
+	const responseText = botMessages[actionKey] || actionKey;
+
+	if (responseText) {
 		sendWhatsappMessage(data.phoneNumber, responseText);
 	}
 
@@ -87,15 +88,22 @@ async function handleConversation(anonymizedId, text) {
 
 		// ESTADO 0
 		if (session.step === 0) {
-			session.step = 1; // Avança para o próximo
-			return "MENU"; // Avisa o index para enviar a mensagem de menu
+			const categoryData = await getCategories();
+
+			if (categoryData) {
+				session.validIDs = categoryData.validIDs;
+				session.step = 1;
+				return botMessages.WELCOME_HEADER + categoryData.menuText;
+			} else {
+				return "ERRO_BANCO";
+			}
 		}
 
 		// ESTADO 1
 		if (session.step === 1) {
 			const option = text.trim();
 
-			if (["1", "2", "3"].includes(option)) {
+			if (session.validIDs.includes(option)) {
 				session.categoryId = option;
 				session.step = 2; // Avança para o próximo estado
 				return "PEDIR_RELATO";
@@ -107,18 +115,55 @@ async function handleConversation(anonymizedId, text) {
 		// ESTADO 2
 		if (session.step === 2) {
 			const reportText = text.trim();
-			const categoryId = session.categoryId;
-			const success = await createTicket(anonymizedId, categoryId, reportText);
+			if (reportText.length < 10) {
+				return "RELATO_MUITO_CURTO";
+			}
+
+			const success = await createTicket(
+				session.anonId,
+				session.categoryId,
+				reportText,
+			);
 
 			if (success) {
-				delete userStates[anonymizedId];
-				return "CHAMADO_ABERTO";
+				session.step = 0;
+				return "SUCESSO_ENVIO";
 			} else {
-				return "ERRO_BANCO";
+				return "ERRO_SISTEMA";
 			}
 		}
 	} catch (error) {
 		console.log("Erro na Máquina de Estados:", error.message);
+		return null;
+	}
+}
+
+async function getCategories() {
+	try {
+		const { data, error } = await supabase.from("categoria").select("id, nome");
+
+		if (error) {
+			console.log("\nErro ao capturar categorias: ", error.message);
+			return null;
+		}
+
+		const validIDs = data.map((category) => {
+			return String(category.id);
+		});
+
+		const formattedCategories = data.map((category) => {
+			return `${category.id} - ${category.nome}`;
+		});
+
+		return {
+			menuText: formattedCategories.join("\n"),
+			validIDs: validIDs,
+		};
+	} catch (error) {
+		console.log(
+			"\nErro no Supabase ao tentar capturar categorias: ",
+			error.message,
+		);
 		return null;
 	}
 }
@@ -214,4 +259,5 @@ async function createTicket(anonId, categoryId, text) {
 
 module.exports = {
 	processWebhook,
+	getCategories,
 };
