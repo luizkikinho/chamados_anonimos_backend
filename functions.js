@@ -13,22 +13,13 @@ async function processWebhook(payload) {
 	const rawPhoneNumber = data.phoneNumber;
 	const text = data.text.trim().toLowerCase();
 
-	// 1. Gera o anonId (operação barata em memória) para verificar sessão
+	// 1. Gera o anonId (necessário para identificar o estado do usuário)
 	const anonId = anonymizeUser(rawPhoneNumber);
 
-	// 2. FILTRO DE ATIVAÇÃO: Só processa se for /start ou se já houver conversa ativa
-	const sessionExists = !!userStates[anonId];
-
-	if (text !== "/start" && !sessionExists) {
-		console.log(
-			`[FILTRO] Mensagem de ${rawPhoneNumber} ignorada: sem '/start' e sem sessão.`,
-		);
-		return null;
-	}
-
-	// 3. Se passou no filtro, garante a identidade no banco e inicializa/reseta a sessão
+	// 2. Garante a identidade no banco (LGPD/Triagem anônima)
 	await saveIdentity(anonId, rawPhoneNumber);
 
+	// 3. Inicializa a sessão se for um novo usuário ou se ele digitar /start (para resetar)
 	if (text === "/start" || !userStates[anonId]) {
 		userStates[anonId] = {
 			step: 0,
@@ -57,7 +48,6 @@ async function processWebhook(payload) {
 
 function extractData(payload) {
 	try {
-		// Ajustado para o padrão remoteJidAlt da Evolution
 		const remoteJid =
 			payload.data.key.remoteJidAlt || payload.data.key.remoteJid;
 		const text =
@@ -101,7 +91,6 @@ async function handleConversation(anonymizedId, text) {
 			if (categoryData) {
 				session.validIDs = categoryData.validIDs;
 				session.step = 1;
-				// Concatena o cabeçalho estático com a lista vinda do banco
 				return botMessages.WELCOME_HEADER + categoryData.menuText;
 			} else {
 				return "ERRO_BANCO";
@@ -128,7 +117,6 @@ async function handleConversation(anonymizedId, text) {
 				return "RELATO_MUITO_CURTO";
 			}
 
-			// Correção: Usando o anonymizedId passado por parâmetro
 			const success = await createTicket(
 				anonymizedId,
 				session.categoryId,
@@ -136,8 +124,8 @@ async function handleConversation(anonymizedId, text) {
 			);
 
 			if (success) {
-				session.step = 0; // Opcional: Voltar para o início ou encerrar
-				delete userStates[anonymizedId]; // Limpa sessão após sucesso
+				session.step = 0;
+				delete userStates[anonymizedId]; // Limpa a sessão após o envio bem-sucedido
 				return "SUCESSO_ENVIO";
 			} else {
 				return "ERRO_SISTEMA";
@@ -152,7 +140,6 @@ async function handleConversation(anonymizedId, text) {
 async function getCategories() {
 	try {
 		const { data, error } = await supabase.from("categoria").select("id, nome");
-
 		if (error) throw error;
 
 		const validIDs = data.map((cat) => String(cat.id));
@@ -171,7 +158,6 @@ async function getCategories() {
 async function sendWhatsappMessage(phoneNumber, messageText) {
 	try {
 		const endpoint = `${process.env.EVOLUTION_API_URL}/message/sendText/${process.env.EVOLUTION_INSTANCE_NAME}`;
-
 		const payloadEvolution = {
 			number: phoneNumber,
 			options: { delay: 1200, presence: "composing" },
