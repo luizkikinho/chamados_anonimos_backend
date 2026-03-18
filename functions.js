@@ -155,7 +155,6 @@ async function sendWhatsappMessage(phoneNumber, messageText) {
 		});
 
 		if (!response.ok) {
-			// 2. A MÁGICA: Extraindo o motivo do erro que a Evolution devolve
 			const errorDetails = await response.text(); 
 			console.log(`[ERRO OUTBOUND] Status ${response.status}`);
 			console.log(`[MOTIVO]: ${errorDetails}`);
