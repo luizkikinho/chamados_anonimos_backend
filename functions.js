@@ -33,16 +33,19 @@ async function processWebhook(payload) {
 
 function extractData(payload) {
 	try {
-		// Navega pela estrutura do JSON para pegar o ID e o texto.
-		// O número de telefone vem como "5512999999999@s.whatsapp.net",
-		// então vou remover tudo a partir do '@'.
+		// 1. O ESPIÃO: Imprime o pacote bruto e completo no log do Koyeb
+		console.log("\n--- PAYLOAD BRUTO DA EVOLUTION ---");
+		console.log(JSON.stringify(payload, null, 2));
+		console.log("----------------------------------\n");
+
+		// Mantemos o código original rodando para não quebrar o fluxo agora
 		const remoteJid = payload.data.key.remoteJid;
-		const text = payload.data.message.conversation;
+		// Dica de UX extra: o WhatsApp manda mensagens normais em 'conversation' 
+		// mas se a pessoa usar o WhatsApp Web, às vezes vem em 'extendedTextMessage.text'
+		const text = payload.data.message?.conversation || payload.data.message?.extendedTextMessage?.text || "."; 
 		const phoneNumber = remoteJid.split("@")[0];
 
-		// Retorno no log do terminal
-		console.log(`\n\nNúmero de telefone: ${phoneNumber}`);
-		console.log(`Mensagem: ${text}`);
+		console.log(`Número extraído (provável erro): ${phoneNumber}`);
 
 		return {
 			phoneNumber: phoneNumber,
@@ -53,7 +56,6 @@ function extractData(payload) {
 		return null;
 	}
 }
-
 // Pseudonimização
 function anonymizeUser(phoneNumber) {
 	try {
