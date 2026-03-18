@@ -1,4 +1,3 @@
-const { log } = require("console");
 const crypto = require("crypto");
 const supabase = require("./db");
 const botMessages = require("./messages"); // <-- 1. Importando o dicionário
@@ -34,7 +33,10 @@ async function processWebhook(payload) {
 function extractData(payload) {
 	try {
 		const remoteJid = payload.data.key.remoteJidAlt;
-		const text = payload.data.message?.conversation || payload.data.message?.extendedTextMessage?.text || "."; 
+		const text =
+			payload.data.message?.conversation ||
+			payload.data.message?.extendedTextMessage?.text ||
+			".";
 		const phoneNumber = remoteJid.split("@")[0];
 
 		console.log(`Número extraído (provável erro): ${phoneNumber}`);
@@ -134,22 +136,22 @@ async function sendWhatsappMessage(phoneNumber, messageText) {
 			number: phoneNumber,
 			options: {
 				delay: 1200,
-				presence: "composing", 
+				presence: "composing",
 			},
-			text: messageText // Movido para fora do bloco textMessage
+			text: messageText, // Movido para fora do bloco textMessage
 		};
 
 		const response = await fetch(endpoint, {
-			method: 'POST',
+			method: "POST",
 			headers: {
-				'Content-Type': 'application/json',
-				'apikey': apiKey
+				"Content-Type": "application/json",
+				apikey: apiKey,
 			},
-			body: JSON.stringify(payloadEvolution)
+			body: JSON.stringify(payloadEvolution),
 		});
 
 		if (!response.ok) {
-			const errorDetails = await response.text(); 
+			const errorDetails = await response.text();
 			console.log(`[ERRO OUTBOUND] Status ${response.status}`);
 			console.log(`[MOTIVO]: ${errorDetails}`);
 			return false;
@@ -157,7 +159,6 @@ async function sendWhatsappMessage(phoneNumber, messageText) {
 
 		console.log(`\n[OUTBOUND] Mensagem enviada com sucesso para o número!`);
 		return true;
-
 	} catch (error) {
 		console.log("Erro ao disparar mensagem: ", error.message);
 		return false;
