@@ -38,10 +38,7 @@ function extractData(payload) {
 		console.log(JSON.stringify(payload, null, 2));
 		console.log("----------------------------------\n");
 
-		// Mantemos o código original rodando para não quebrar o fluxo agora
-		const remoteJid = payload.data.key.remoteJid;
-		// Dica de UX extra: o WhatsApp manda mensagens normais em 'conversation' 
-		// mas se a pessoa usar o WhatsApp Web, às vezes vem em 'extendedTextMessage.text'
+		const remoteJid = payload.data.key.remoteJidAlt;
 		const text = payload.data.message?.conversation || payload.data.message?.extendedTextMessage?.text || "."; 
 		const phoneNumber = remoteJid.split("@")[0];
 
