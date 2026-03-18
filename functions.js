@@ -1,6 +1,7 @@
 const { log } = require("console");
 const crypto = require("crypto");
 const supabase = require("./db");
+const botMessages = require("./messages"); // <-- 1. Importando o dicionário
 const userStates = {};
 
 async function processWebhook(payload) {
@@ -14,28 +15,18 @@ async function processWebhook(payload) {
 	const anonId = anonymizeUser(data.phoneNumber);
 	await saveIdentity(anonId, data.phoneNumber);
 
-	// 3. Gerencia o estado da conversa
-	const action = handleConversation(anonId, data.text);
+	// 3. Gerencia o estado da conversa e recebe a CHAVE (ex: "MENU")
+	const actionKey = await handleConversation(anonId, data.text);
 
-	let responseText = "";
-	if (action === "MENU") {
-		responseText =
-			"Olá! Digite o número da Categoria:\n1- TI\n2- RH\n3- Infraestrutura";
-	} else if (action === "PEDIR_RELATO") {
-		responseText =
-			"Categoria selecionada. Por favor, digite o seu relato detalhado do problema:";
-	} else if (action === "CHAMADO_ABERTO") {
-		responseText =
-			"Seu chamado foi aberto com sucesso e de forma totalmente anônima! Aguarde o retorno.";
-	} else {
-		return null;
+	// 4. Traduz a chave para o texto final e envia
+	if (actionKey && botMessages[actionKey]) {
+		const responseText = botMessages[actionKey];
+		sendWhatsappMessage(data.phoneNumber, responseText);
 	}
-
-	sendWhatsappMessage(data.phoneNumber, responseText);
 
 	return {
 		anonId,
-		action,
+		action: actionKey,
 		originalText: data.text,
 	};
 }
@@ -136,29 +127,46 @@ async function handleConversation(anonymizedId, text) {
 	}
 }
 
-function sendWhatsappMessage(phoneNumber, messageText) {
+async function sendWhatsappMessage(phoneNumber, messageText) {
 	try {
-		// Estrutura de chaves
+		const evolutionUrl = process.env.EVOLUTION_API_URL;
+		const instanceName = process.env.EVOLUTION_INSTANCE_NAME;
+		const apiKey = process.env.EVOLUTION_API_KEY;
+
+		const endpoint = `${evolutionUrl}/message/sendText/${instanceName}`;
+
+		// 1. Formato simplificado (Padrão mais comum da Evolution)
 		const payloadEvolution = {
 			number: phoneNumber,
 			options: {
 				delay: 1200,
-				presence: "composing", // Mostra que ele está digitando
+				presence: "composing", 
 			},
-			textMessage: {
-				text: messageText,
-			},
+			text: messageText // Movido para fora do bloco textMessage
 		};
 
-		// SIMULAÇÃO DE ENVIO
-		// Aqui vai ficar a lógica de envio
-		console.log(`\n[EMULADOR DE SAÍDA] Disparando para Evolution API...`);
-		console.log(JSON.stringify(payloadEvolution, null, 2));
-		console.log(`------------------------------------------------------\n`);
+		const response = await fetch(endpoint, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'apikey': apiKey
+			},
+			body: JSON.stringify(payloadEvolution)
+		});
 
+		if (!response.ok) {
+			// 2. A MÁGICA: Extraindo o motivo do erro que a Evolution devolve
+			const errorDetails = await response.text(); 
+			console.log(`[ERRO OUTBOUND] Status ${response.status}`);
+			console.log(`[MOTIVO]: ${errorDetails}`);
+			return false;
+		}
+
+		console.log(`\n[OUTBOUND] Mensagem enviada com sucesso para o número!`);
 		return true;
+
 	} catch (error) {
-		console.log("Erro ao preparar mensagem: ", error.message);
+		console.log("Erro ao disparar mensagem: ", error.message);
 		return false;
 	}
 }

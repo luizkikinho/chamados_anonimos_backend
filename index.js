@@ -1,4 +1,5 @@
 const express = require("express");
+const botMessages = require("./messages");
 const { processWebhook } = require("./functions");
 const app = express(); // inicializa o servidor
 
