@@ -6,45 +6,46 @@ const userStates = {};
 async function processWebhook(payload) {
 	console.log("[WEBHOOK] Recebendo nova interação...");
 
-	// Extrai os dados
+	// Extrai os dados básicos
 	const data = extractData(payload);
 	if (!data) return null;
 
 	const rawPhoneNumber = data.phoneNumber;
 	const text = data.text.trim().toLowerCase();
 
-	const sessionExists = Object.values(userStates).some(
-		(s) => s.rawPhone === rawPhoneNumber,
-	);
+	// 1. Gera o anonId (operação barata em memória) para verificar sessão
+	const anonId = anonymizeUser(rawPhoneNumber);
+
+	// 2. FILTRO DE ATIVAÇÃO: Só processa se for /start ou se já houver conversa ativa
+	const sessionExists = !!userStates[anonId];
 
 	if (text !== "/start" && !sessionExists) {
 		console.log(
-			`[IGNORADO] Mensagem de ${rawPhoneNumber} não é '/start' e não há sessão ativa.`,
+			`[FILTRO] Mensagem de ${rawPhoneNumber} ignorada: sem '/start' e sem sessão.`,
 		);
 		return null;
 	}
 
-	// Anonimiza o remetente e salva no banco de dados
-	const anonId = anonymizeUser(data.phoneNumber);
-	await saveIdentity(anonId, data.phoneNumber);
+	// 3. Se passou no filtro, garante a identidade no banco e inicializa/reseta a sessão
+	await saveIdentity(anonId, rawPhoneNumber);
 
-	if (!userStates[anonId]) {
+	if (text === "/start" || !userStates[anonId]) {
 		userStates[anonId] = {
 			step: 0,
 			categoryId: null,
-			complaintText: null,
+			validIDs: [],
 			rawPhone: rawPhoneNumber,
 		};
 	}
 
-	// Gerencia o estado da conversa e recebe a CHAVE (ex: "MENU")
+	// 4. Gerencia a conversa e recebe o texto ou a chave
 	const actionKey = await handleConversation(anonId, data.text);
 
-	// Traduz a chave para o texto final e envia
+	// 5. Traduz a chave (se existir no messages.js) ou usa o texto bruto (menu dinâmico)
 	const responseText = botMessages[actionKey] || actionKey;
 
 	if (responseText) {
-		sendWhatsappMessage(data.phoneNumber, responseText);
+		await sendWhatsappMessage(rawPhoneNumber, responseText);
 	}
 
 	return {
@@ -56,14 +57,14 @@ async function processWebhook(payload) {
 
 function extractData(payload) {
 	try {
-		const remoteJid = payload.data.key.remoteJidAlt;
+		// Ajustado para o padrão remoteJidAlt da Evolution
+		const remoteJid =
+			payload.data.key.remoteJidAlt || payload.data.key.remoteJid;
 		const text =
 			payload.data.message?.conversation ||
 			payload.data.message?.extendedTextMessage?.text ||
-			".";
+			"";
 		const phoneNumber = remoteJid.split("@")[0];
-
-		console.log(`Número extraído (provável erro): ${phoneNumber}`);
 
 		return {
 			phoneNumber: phoneNumber,
@@ -74,7 +75,7 @@ function extractData(payload) {
 		return null;
 	}
 }
-// Pseudonimização
+
 function anonymizeUser(phoneNumber) {
 	try {
 		const salt = "mas_vai_me_soltar_ne_saci";
@@ -82,65 +83,61 @@ function anonymizeUser(phoneNumber) {
 			.createHmac("sha256", salt)
 			.update(phoneNumber)
 			.digest("hex");
-		const shortId = fullHash.substring(0, 8);
-
-		// A ser removido no deploy
-		console.log(
-			`\n\nNúmero original: ${phoneNumber}, convertido para o ID ${shortId}.`,
-		);
-		return shortId;
+		return fullHash.substring(0, 8);
 	} catch (error) {
-		console.log("Erro: ", error.message);
+		console.log("Erro na anonimização: ", error.message);
 		return null;
 	}
 }
 
-// Função para controle de fluxo da conversa (Máquina de Estados)
 async function handleConversation(anonymizedId, text) {
 	try {
 		const session = userStates[anonymizedId];
 
-		// ESTADO 0
+		// ESTADO 0: Envio do Menu Dinâmico
 		if (session.step === 0) {
 			const categoryData = await getCategories();
 
 			if (categoryData) {
 				session.validIDs = categoryData.validIDs;
 				session.step = 1;
+				// Concatena o cabeçalho estático com a lista vinda do banco
 				return botMessages.WELCOME_HEADER + categoryData.menuText;
 			} else {
 				return "ERRO_BANCO";
 			}
 		}
 
-		// ESTADO 1
+		// ESTADO 1: Validação da Categoria
 		if (session.step === 1) {
 			const option = text.trim();
 
 			if (session.validIDs.includes(option)) {
 				session.categoryId = option;
-				session.step = 2; // Avança para o próximo estado
+				session.step = 2;
 				return "PEDIR_RELATO";
 			} else {
 				return "OPCAO_INVALIDA";
 			}
 		}
 
-		// ESTADO 2
+		// ESTADO 2: Recebimento do Relato e Gravação
 		if (session.step === 2) {
 			const reportText = text.trim();
 			if (reportText.length < 10) {
 				return "RELATO_MUITO_CURTO";
 			}
 
+			// Correção: Usando o anonymizedId passado por parâmetro
 			const success = await createTicket(
-				session.anonId,
+				anonymizedId,
 				session.categoryId,
 				reportText,
 			);
 
 			if (success) {
-				session.step = 0;
+				session.step = 0; // Opcional: Voltar para o início ou encerrar
+				delete userStates[anonymizedId]; // Limpa sessão após sucesso
 				return "SUCESSO_ENVIO";
 			} else {
 				return "ERRO_SISTEMA";
@@ -148,7 +145,7 @@ async function handleConversation(anonymizedId, text) {
 		}
 	} catch (error) {
 		console.log("Erro na Máquina de Estados:", error.message);
-		return null;
+		return "ERRO_SISTEMA";
 	}
 }
 
@@ -156,98 +153,63 @@ async function getCategories() {
 	try {
 		const { data, error } = await supabase.from("categoria").select("id, nome");
 
-		if (error) {
-			console.log("\nErro ao capturar categorias: ", error.message);
-			return null;
-		}
+		if (error) throw error;
 
-		const validIDs = data.map((category) => {
-			return String(category.id);
-		});
-
-		const formattedCategories = data.map((category) => {
-			return `${category.id} - ${category.nome}`;
-		});
+		const validIDs = data.map((cat) => String(cat.id));
+		const formattedCategories = data.map((cat) => `${cat.id} - ${cat.nome}`);
 
 		return {
-			menuText: formattedCategories.join("\n"),
+			menuText: "\n" + formattedCategories.join("\n"),
 			validIDs: validIDs,
 		};
 	} catch (error) {
-		console.log(
-			"\nErro no Supabase ao tentar capturar categorias: ",
-			error.message,
-		);
+		console.log("Erro ao capturar categorias:", error.message);
 		return null;
 	}
 }
 
 async function sendWhatsappMessage(phoneNumber, messageText) {
 	try {
-		const evolutionUrl = process.env.EVOLUTION_API_URL;
-		const instanceName = process.env.EVOLUTION_INSTANCE_NAME;
-		const apiKey = process.env.EVOLUTION_API_KEY;
+		const endpoint = `${process.env.EVOLUTION_API_URL}/message/sendText/${process.env.EVOLUTION_INSTANCE_NAME}`;
 
-		const endpoint = `${evolutionUrl}/message/sendText/${instanceName}`;
-
-		// 1. Formato simplificado (Padrão mais comum da Evolution)
 		const payloadEvolution = {
 			number: phoneNumber,
-			options: {
-				delay: 1200,
-				presence: "composing",
-			},
-			text: messageText, // Movido para fora do bloco textMessage
+			options: { delay: 1200, presence: "composing" },
+			text: messageText,
 		};
 
 		const response = await fetch(endpoint, {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
-				apikey: apiKey,
+				apikey: process.env.EVOLUTION_API_KEY,
 			},
 			body: JSON.stringify(payloadEvolution),
 		});
 
-		if (!response.ok) {
-			const errorDetails = await response.text();
-			console.log(`[ERRO OUTBOUND] Status ${response.status}`);
-			console.log(`[MOTIVO]: ${errorDetails}`);
-			return false;
-		}
-
-		console.log(`\n[OUTBOUND] Mensagem enviada com sucesso para o número!`);
-		return true;
+		return response.ok;
 	} catch (error) {
-		console.log("Erro ao disparar mensagem: ", error.message);
+		console.log("Erro ao disparar mensagem:", error.message);
 		return false;
 	}
 }
 
 async function saveIdentity(anonId, phoneNumber) {
 	try {
-		const { error } = await supabase.from("identidades").upsert(
-			{
-				remetente_hash: anonId,
-				telefone: phoneNumber,
-			},
-			{ onConflict: "remetente_hash" },
-		);
-
-		if (error) {
-			console.log("Erro do Supabase ao salvar identidade:", error.message);
-			return false;
-		}
-
-		console.log(`\nIdentidade vincula com sucesso no cofre: ${anonId}`);
+		const { error } = await supabase
+			.from("identidades")
+			.upsert(
+				{ remetente_hash: anonId, telefone: phoneNumber },
+				{ onConflict: "remetente_hash" },
+			);
+		if (error) throw error;
 		return true;
 	} catch (error) {
-		console.log("Erro na execução da saveIdentity:", error.message);
+		console.log("Erro ao salvar identidade:", error.message);
 		return false;
 	}
 }
 
-// Formata os dados para a tabela chamados
 async function createTicket(anonId, categoryId, text) {
 	try {
 		const { error } = await supabase.from("chamados").insert([
@@ -257,21 +219,13 @@ async function createTicket(anonId, categoryId, text) {
 				texto: text,
 			},
 		]);
-
-		if (error) {
-			console.log("Erro do Supabase ao criar o chamado:", error.message);
-			return false;
-		}
-
-		console.log(`\n\n[TG] Chamado registrado com sucesso para o id: ${anonId}`);
+		if (error) throw error;
+		console.log(`[TG] Chamado registrado: ${anonId}`);
 		return true;
 	} catch (error) {
-		console.log('Erro na execução do "createTicket": ', error.message);
+		console.log("Erro ao criar chamado:", error.message);
 		return false;
 	}
 }
 
-module.exports = {
-	processWebhook,
-	getCategories,
-};
+module.exports = { processWebhook, getCategories };
