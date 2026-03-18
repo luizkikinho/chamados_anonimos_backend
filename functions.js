@@ -33,11 +33,6 @@ async function processWebhook(payload) {
 
 function extractData(payload) {
 	try {
-		// 1. O ESPIÃO: Imprime o pacote bruto e completo no log do Koyeb
-		console.log("\n--- PAYLOAD BRUTO DA EVOLUTION ---");
-		console.log(JSON.stringify(payload, null, 2));
-		console.log("----------------------------------\n");
-
 		const remoteJid = payload.data.key.remoteJidAlt;
 		const text = payload.data.message?.conversation || payload.data.message?.extendedTextMessage?.text || "."; 
 		const phoneNumber = remoteJid.split("@")[0];
