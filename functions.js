@@ -4,15 +4,38 @@ const botMessages = require("./messages");
 const userStates = {};
 
 async function processWebhook(payload) {
-	console.log("Iniciando o orquestramento de nova mensagem...");
+	console.log("[WEBHOOK] Recebendo nova interação...");
 
 	// Extrai os dados
 	const data = extractData(payload);
 	if (!data) return null;
 
+	const rawPhoneNumber = data.phoneNumber;
+	const text = data.text.trim().toLowerCase();
+
+	const sessionExists = Object.values(userStates).some(
+		(s) => s.rawPhone === rawPhoneNumber,
+	);
+
+	if (text !== "/start" && !sessionExists) {
+		console.log(
+			`[IGNORADO] Mensagem de ${rawPhoneNumber} não é '/start' e não há sessão ativa.`,
+		);
+		return null;
+	}
+
 	// Anonimiza o remetente e salva no banco de dados
 	const anonId = anonymizeUser(data.phoneNumber);
 	await saveIdentity(anonId, data.phoneNumber);
+
+	if (!userStates[anonId]) {
+		userStates[anonId] = {
+			step: 0,
+			categoryId: null,
+			complaintText: null,
+			rawPhone: rawPhoneNumber,
+		};
+	}
 
 	// Gerencia o estado da conversa e recebe a CHAVE (ex: "MENU")
 	const actionKey = await handleConversation(anonId, data.text);
@@ -75,15 +98,6 @@ function anonymizeUser(phoneNumber) {
 // Função para controle de fluxo da conversa (Máquina de Estados)
 async function handleConversation(anonymizedId, text) {
 	try {
-		if (!userStates[anonymizedId]) {
-			// Se o ID não tem um estado...
-			userStates[anonymizedId] = {
-				step: 0, // ... inicia como '0'
-				categoryId: null, // Não irá ter categoria...
-				complaintText: null, // ... e nem texto
-			};
-		}
-
 		const session = userStates[anonymizedId];
 
 		// ESTADO 0
