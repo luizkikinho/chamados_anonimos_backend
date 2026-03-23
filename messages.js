@@ -1,7 +1,7 @@
 const botMessages = {
   // Apenas o cabeçalho, pois a lista virá do banco
   WELCOME_HEADER:
-    "Olá! 🛡️ Bem-vindo ao SafeVoice.\n\nPara iniciar seu relato anônimo, escolha uma categoria respondendo com o número:\n\n 0 - Cancelar chamado\n",
+    "Olá! 🛡️ Bem-vindo ao SafeVoice.\nPara iniciar seu relato anônimo, escolha uma categoria respondendo com o número:\n 0 - Cancelar chamado",
 
   // Mensagem genérica para erro de digitação
   OPCAO_INVALIDA:
