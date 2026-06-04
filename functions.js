@@ -1,6 +1,15 @@
+require("dotenv").config();
 const crypto = require("crypto");
 const supabase = require("./db");
 const botMessages = require("./messages");
+const {
+  buildLgpdPayload,
+  buildMenuPayload,
+  buildCategoryListPayload,
+  buildConfirmarRelatoPayload,
+} = require("./utils/messageBuilder");
+const { type } = require("os");
+
 const userStates = {};
 
 async function processWebhook(payload) {
@@ -39,36 +48,57 @@ async function processWebhook(payload) {
   }
 
   // 4. Gerencia a conversa e recebe o texto ou a chave
-  const actionKey = await handleConversation(anonId, data.text);
+  const actionResult = await handleConversation(anonId, data.text);
 
-  // 5. Traduz a chave (se existir no messages.js) ou usa o texto bruto (menu dinâmico)
-  const responseText = botMessages[actionKey] || actionKey;
+  const actions = Array.isArray(actionResult) ? actionResult : [actionResult];
 
-  if (responseText) {
-    await sendWhatsappMessage(rawPhoneNumber, responseText);
+  for (const action of actions) {
+    if (!action) continue;
+    if (action.type === "buttons") {
+      const payload = action.payloadBuilder(rawPhoneNumber);
+      await sendWhatsappButtons(rawPhoneNumber, payload);
+    } else if (action.type === "list") {
+      const payload = action.payloadBuilder(rawPhoneNumber);
+      await sendWhatsappList(rawPhoneNumber, payload);
+    } else if (typeof action === "string") {
+      const responseText = botMessages[action] || action;
+      if (responseText) {
+        await sendWhatsappMessage(rawPhoneNumber, responseText);
+      }
+    }
   }
 
   return {
     anonId,
-    action: actionKey,
+    action: typeof actionResult === "string" ? actionResult : actionResult.type,
     originalText: data.text,
   };
 }
 
 function extractData(payload) {
   try {
-    // Ajustado para o padrão remoteJidAlt da Evolution
-    const remoteJid =
-      payload.data.key.remoteJidAlt || payload.data.key.remoteJid;
-    const text =
+    const remoteJid = payload.data.remoteJidAlt || payload.data.key.remoteJid;
+
+    const buttonResponse =
+      payload.data.message?.buttonsResponseMessage?.selectedButtonId ||
+      payload.data.message?.templateButtonReplyMessage?.selectedId ||
+      payload.data.message?.listResponseMessage?.singleSelectReply
+        ?.selectedRowId ||
+      payload.data.message?.interactiveResponseMessage
+        ?.nativeFlowResponseMessage?.name;
+
+    const textResponse =
       payload.data.message?.conversation ||
       payload.data.message?.extendedTextMessage?.text ||
       "";
+
+    const finalInteraction = buttonResponse || textResponse;
+
     const phoneNumber = remoteJid.split("@")[0];
 
     return {
       phoneNumber: phoneNumber,
-      text: text,
+      text: finalInteraction,
     };
   } catch (error) {
     console.log("Erro ao extrair dados: ", error.message);
@@ -78,7 +108,7 @@ function extractData(payload) {
 
 function anonymizeUser(phoneNumber) {
   try {
-    const salt = "mas_vai_me_soltar_ne_saci";
+    const salt = process.env.SALT;
     const fullHash = crypto
       .createHmac("sha256", salt)
       .update(phoneNumber)
@@ -96,56 +126,116 @@ async function handleConversation(anonymizedId, text) {
 
     // ESTADO 0: Envio do Menu Dinâmico
     if (session.step === 0) {
-      const categoryData = await getCategories();
+      session.step = "AGUARDANDO_LGPD";
+      return [
+        "WELCOME_HEADER",
+        {
+          type: "buttons",
+          payloadBuilder: buildLgpdPayload,
+        },
+      ];
+    }
 
-      if (categoryData) {
+    // ESTADO 1
+    if (session.step === "AGUARDANDO_LGPD") {
+      if (text === "btn_aceitar_termos") {
+        session.step = "MENU_PRINCIPAL";
+        return {
+          type: "buttons",
+          payloadBuilder: buildMenuPayload,
+        };
+      } else if (text === "btn_ler_termos") {
+        return "TERMOS_LGPD_COMPLETOS";
+      } else {
+        return "POR_FAVOR_USE_OS_BOTOES";
+      }
+    }
+
+    // ESTADO 2
+    if (session.step === "MENU_PRINCIPAL") {
+      if (text === "btn_nova_denuncia") {
+        const categoryData = await getCategories();
+        if (!categoryData) return "ERRO_BANCO";
+
         session.validIDs = categoryData.validIDs;
-        session.step = 1;
-        // Concatena o cabeçalho estático com a lista vinda do banco
-        return botMessages.WELCOME_HEADER + categoryData.menuText;
-      } else {
-        return "ERRO_BANCO";
+        session.step = "SELECIONANDO_CATEGORIA";
+
+        return {
+          type: "list",
+          payloadBuilder: (numero) =>
+            buildCategoryListPayload(numero, categoryData.rawCategories),
+        };
       }
     }
 
-    // ESTADO 1: Validação da Categoria
-    if (session.step === 1) {
-      const option = text.trim() || "";
-
-      if (option === "0") {
+    // ESTADO 2.5
+    if (session.step === "SELECIONANDO_CATEGORIA") {
+      if (text === "btn_cancelar") {
         delete userStates[anonymizedId];
-        return "CANCELADO";
+        return "OPERACAO_CANCELADA";
       }
 
-      if (session.validIDs.includes(option)) {
-        session.categoryId = option;
-        session.step = 2;
-        return "PEDIR_RELATO";
-      } else {
-        return "OPCAO_INVALIDA";
+      if (text.startsWith("cat_")) {
+        const idEscolhido = text.split("_")[1];
+        if (session.validIDs.includes(idEscolhido)) {
+          session.categoryId = idEscolhido;
+          session.step = "ESCREVENDO_RELATO";
+          return "PEDIR_RELATO";
+        }
       }
+      return "POR_FAVOR_USE_A_LISTA";
     }
 
-    // ESTADO 2: Recebimento do Relato e Gravação
-    if (session.step === 2) {
-      const reportText = text.trim();
-      if (reportText.length < 10) {
+    // ESTADO 3
+    if (session.step === "ESCREVENDO_RELATO") {
+      if (text.length < 10) {
         return "RELATO_MUITO_CURTO";
       }
 
-      // Correção: Usando o anonymizedId passado por parâmetro
-      const success = await createTicket(
-        anonymizedId,
-        session.categoryId,
-        reportText,
-      );
+      session.relatoProvisorio = text;
+      session.step = "CONFIRMANDO_RELATO";
 
-      if (success) {
-        session.step = 0; // Opcional: Voltar para o início ou encerrar
-        delete userStates[anonymizedId]; // Limpa sessão após sucesso
-        return "SUCESSO_ENVIO";
+      return {
+        type: "buttons",
+        payloadBuilder: (numero) =>
+          buildConfirmarRelatoPayload(numero, session.relatoProvisorio),
+      };
+    }
+
+    // ESTADO 4
+    if (session.step === "CONFIRMANDO_RELATO") {
+      if (text === "btn_confirmar_relato") {
+        // 1. Gera o Protocolo Amigável (Ex: DEN-8492-A7F1)
+        const hashCurto = crypto.randomBytes(2).toString("hex").toUpperCase();
+        const numeroAleatorio = Math.floor(1000 + Math.random() * 9000);
+        const ticketProtocolo = `DEN-${numeroAleatorio}-${hashCurto}`;
+
+        // 2. Tenta salvar no Supabase (Precisamos atualizar a createTicket lá embaixo!)
+        const success = await createTicket(
+          anonymizedId,
+          session.categoryId,
+          session.relatoProvisorio,
+          ticketProtocolo,
+        );
+
+        if (success) {
+          // 3. ZERO TRUST: Destruição total da sessão em RAM
+          delete userStates[anonymizedId];
+
+          // 4. Retorna a mensagem de sucesso e o protocolo
+          return [
+            "SUCESSO_ENVIO", // Adicione no messages.js: "Denúncia registrada com sucesso no cofre!"
+            `Seu número de protocolo é:\n\n*${ticketProtocolo}*\n\nGuarde este código. Ele será a única forma de consultar o andamento da sua denúncia no futuro.`,
+          ];
+        } else {
+          return "ERRO_SISTEMA";
+        }
+      } else if (text === "btn_reescrever_relato") {
+        session.relatoProvisorio = null;
+        session.step = "ESCREVENDO_RELATO";
+        return "PEDIR_RELATO_NOVAMENTE";
       } else {
-        return "ERRO_SISTEMA";
+        return "POR_FAVOR_USE_OS_BOTOES";
       }
     }
   } catch (error) {
@@ -164,7 +254,7 @@ async function getCategories() {
     const formattedCategories = data.map((cat) => `${cat.id} - ${cat.nome}`);
 
     return {
-      menuText: "\n" + formattedCategories.join("\n"),
+      rawCategories: data,
       validIDs: validIDs,
     };
   } catch (error) {
@@ -199,6 +289,58 @@ async function sendWhatsappMessage(phoneNumber, messageText) {
   }
 }
 
+async function sendWhatsappButtons(phoneNumber, payload) {
+  try {
+    const endpoint = `${process.env.EVOLUTION_API_URL}/message/sendButtons/${process.env.EVOLUTION_INSTANCE_NAME}`;
+
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: process.env.EVOLUTION_API_KEY,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error(
+        `[EVOLUTION API] Falha ao enviar botões: Status ${response.status} - ${errorData}`,
+      );
+    }
+    return response.ok;
+  } catch (error) {
+    console.error("Erro ao disparar botões:", error.message);
+    return false;
+  }
+}
+
+async function sendWhatsappList(phoneNumber, payload) {
+  try {
+    const endpoint = `${process.env.EVOLUTION_API_URL}/message/sendList/${process.env.EVOLUTION_INSTANCE_NAME}`;
+
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: process.env.EVOLUTION_API_KEY,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error(
+        `[EVOLUTION API] Falha ao enviar lista: Status ${response.status} - ${errorData}`,
+      );
+    }
+    return response.ok;
+  } catch (error) {
+    console.error("Erro ao disparar lista:", error.message);
+    return false;
+  }
+}
+
 async function saveIdentity(anonId, phoneNumber) {
   try {
     const { error } = await supabase
@@ -215,22 +357,34 @@ async function saveIdentity(anonId, phoneNumber) {
   }
 }
 
-async function createTicket(anonId, categoryId, text) {
-  try {
-    const { error } = await supabase.from("chamados").insert([
-      {
-        remetente_hash: anonId,
-        categoria_id: parseInt(categoryId),
-        texto: text,
-      },
-    ]);
-    if (error) throw error;
-    console.log(`[TG] Chamado registrado: ${anonId}`);
-    return true;
-  } catch (error) {
-    console.log("Erro ao criar chamado:", error.message);
-    return false;
-  }
+// async function createTicket(anonId, categoryId, text, ticketProtocolo) {
+//   try {
+//     const { error } = await supabase.from("chamados").insert([
+//       {
+//         remetente_hash: anonId,
+//         categoria_id: parseInt(categoryId),
+//         texto: text,
+//         protocolo: ticketProtocolo, // Salvando a string do protocolo gerado
+//       },
+//     ]);
+//     if (error) throw error;
+
+//     console.log(`[DB] Denúncia gravada sob o protocolo: ${ticketProtocolo}`);
+//     return true;
+//   } catch (error) {
+//     console.log("Erro ao criar chamado:", error.message);
+//     return false;
+//   }
+// }
+
+async function createTicket(anonId, categoryId, text, ticketProtocolo) {
+  console.log(`\n[MOCK DB] 💾 SIMULANDO GRAVAÇÃO DO CHAMADO NO BANCO...`);
+  console.log(` ├─ Protocolo Gerado: ${ticketProtocolo}`);
+  console.log(` ├─ Hash do Denunciante: ${anonId}`);
+  console.log(` ├─ ID da Categoria: ${categoryId}`);
+  console.log(` └─ Texto do Relato: "${text}"\n`);
+
+  return true; // Finge para a máquina de estados que deu tudo certo
 }
 
 module.exports = { processWebhook, getCategories };
