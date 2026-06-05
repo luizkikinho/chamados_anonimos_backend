@@ -13,11 +13,12 @@ const { type } = require("os");
 const userStates = {};
 
 async function processWebhook(payload) {
-  console.log("[WEBHOOK] Recebendo nova interação...");
-
   // Extrai os dados básicos
   const data = extractData(payload);
   if (!data) return null;
+
+  console.log(`\n======================================================`);
+  console.log(`[WEBHOOK] 📩 Nova interação recebida de ${data.phoneNumber}`);
 
   const rawPhoneNumber = data.phoneNumber;
   const text = data.text.trim().toLowerCase();
