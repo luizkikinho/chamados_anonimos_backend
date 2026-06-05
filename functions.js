@@ -8,8 +8,6 @@ const {
   buildCategoryListPayload,
   buildConfirmarRelatoPayload,
 } = require("./utils/messageBuilder");
-const { type } = require("os");
-const { ifError } = require("assert");
 
 const userStates = {};
 
@@ -298,7 +296,7 @@ async function getCategories(empresaId) {
       .eq("empresa_id", empresaId)
       .eq("active", true);
 
-    if (error) throw error;
+    if (error) { console.error(error); return null }
 
     const validIDs = data.map((cat) => String(cat.id));
 
@@ -393,11 +391,6 @@ async function sendWhatsappList(phoneNumber, payload) {
     console.error("Erro ao disparar lista:", error.message);
     return false;
   }
-}
-
-async function saveIdentity(anonId, phoneNumber) {
-  console.log(`[MOCK DB] Fingindo salvar identidade: ${anonId}`);
-  return true; // Finge que deu certo
 }
 
 async function createTicket(empresaId, categoryId, text, ticketProtocolo) {
