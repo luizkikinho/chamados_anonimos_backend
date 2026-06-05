@@ -13,12 +13,12 @@ function buildLgpdPayload(numeroDestino) {
     buttons: [
       {
         type: "reply",
-        displayText: "Aceitar",
+        displayText: "✔️ Aceitar",
         id: "btn_aceitar_termos",
       },
       {
         type: "reply",
-        displayText: "Ler Termos Completos",
+        displayText: "📄 Ler Termos Completos",
         id: "btn_ler_termos",
       },
     ],
@@ -34,12 +34,12 @@ function buildMenuPayload(numeroDestino) {
     buttons: [
       {
         type: "reply",
-        displayText: "Consultar Ticket",
+        displayText: "🔎 Consultar Ticket",
         id: "btn_consultar_ticket",
       },
       {
         type: "reply",
-        displayText: "Nova Denúncia",
+        displayText: "➕ Nova Denúncia",
         id: "btn_nova_denuncia",
       },
     ],
@@ -84,12 +84,12 @@ function buildConfirmarRelatoPayload(numeroDestino) {
     buttons: [
       {
         type: "reply",
-        displayText: "Confirmar",
+        displayText: "✅ Confirmar",
         id: "btn_confirmar_relato",
       },
       {
         type: "reply",
-        displayText: "Reescrever",
+        displayText: "✏️ Reescrever Relato",
         id: "btn_reescrever_relato",
       },
     ],

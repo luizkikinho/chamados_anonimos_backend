@@ -60,7 +60,7 @@ async function processWebhook(payload) {
       };
     }
 
-    await handleConversation(userStates[anonId], text);
+    await handleConversation(anonId, text);
   } catch (error) {
     console.error("[ERRO GRAVE NO WEBHOOK]:", error);
   }
@@ -268,7 +268,7 @@ async function handleConversation(anonymizedId, text) {
   }
 }
 
-async function getCategories() {
+async function getCategories(empresaId) {
   try {
     const { data, error } = await supabase
       .from("categorias")
@@ -294,17 +294,6 @@ async function getCategories() {
     return null;
   }
 }
-
-// async function getCategories() {
-//   console.log("[MOCK DB] Usando categorias falsas de teste");
-//   return {
-//     rawCategories: [
-//       { id: 1, nome: "Assédio (Teste)" },
-//       { id: 2, nome: "Fraude (Teste)" },
-//     ],
-//     validIDs: ["1", "2"],
-//   };
-// }
 
 async function sendWhatsappMessage(phoneNumber, messageText) {
   try {
@@ -409,7 +398,7 @@ async function createTicket(empresaId, categoryId, text, ticketProtocolo) {
 
     if (errorChamado) throw errorChamado;
 
-    const { error: erroRegistro } = await supabase
+    const { error: errorRegistro } = await supabase
       .from("registro_chamados")
       .insert([
         {
