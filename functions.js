@@ -219,7 +219,7 @@ async function handleConversation(anonymizedId, text) {
 
     // ESTADO 4
     if (session.step === "CONFIRMANDO_RELATO") {
-      if (text === "btn_confirmar_denuncia") {
+      if (text === "btn_confirmar_relato") {
         // 1. Gera o Protocolo Amigável (Ex: DEN-8492-A7F1)
         const hashCurto = crypto.randomBytes(2).toString("hex").toUpperCase();
         const numeroAleatorio = Math.floor(1000 + Math.random() * 9000);

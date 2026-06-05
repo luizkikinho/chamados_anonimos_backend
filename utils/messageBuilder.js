@@ -86,7 +86,7 @@ function buildConfirmarRelatoPayload(numeroDestino) {
       {
         type: "reply",
         displayText: "Confirmar Denúncia",
-        id: "btn_confirmar_denuncia",
+        id: "btn_confirmar_relato",
       },
       {
         type: "reply",
