@@ -60,7 +60,29 @@ async function processWebhook(payload) {
       };
     }
 
-    await handleConversation(anonId, text);
+    const respostas = await handleConversation(anonId, text);
+
+    if (respostas) {
+      const mensagens = Array.isArray(respostas) ? respostas : [respostas];
+      for (const msg of mensagens) {
+        if (typeof msg === "string") {
+          const textoFinal = botMessages[msg] || msg;
+          await sendWhatsappMessage(rawPhoneNumber, textoFinal);
+        } else if (typeof msg === "object") {
+          if (msg.type === "buttons") {
+            await sendWhatsappButtons(
+              rawPhoneNumber,
+              msg.payloadBuilder(rawPhoneNumber),
+            );
+          } else if (msg.type === "list") {
+            await sendWhatsappList(
+              rawPhoneNumber,
+              msg.payloadBuilder(rawPhoneNumber),
+            );
+          }
+        }
+      }
+    }
   } catch (error) {
     console.error("[ERRO GRAVE NO WEBHOOK]:", error);
   }
