@@ -402,40 +402,42 @@ async function saveIdentity(anonId, phoneNumber) {
 
 async function createTicket(empresaId, categoryId, text, ticketProtocolo) {
   try {
-    console.log(`[DB] Gravando chamado ${ticketProtocolo}...`);
+    console.log(`[DB] Gravando chamado ${ticketProtocolo}.`);
 
-    const { data: chamado, error: erroChamado } = await supabase
-      .from("chamados")
-      .insert([
-        {
-          empresa_id: empresaId,
-          categoria_id: categoryId,
+    const { data: chamado, error: supabaseError1 } = await supabase
+    .from("chamados")
+        .insert([{
+          empresaId: empresaId,
+          categoria: categoryId,
           texto: text,
           protocol: ticketProtocolo,
-          status: "NOVO",
-        },
-      ])
-      .select("id")
-      .single();
+          status: "NOVO"
+        }])
+        .select("id")
+        .single();
 
-    if (errorChamado) throw errorChamado;
+    if (supabaseError1) {
+      console.error("[ERRO SUPABASE - CHAMADOS] ", supabaseError1);
+      return false;
+    }
 
-    const { error: errorRegistro } = await supabase
-      .from("registro_chamados")
-      .insert([
-        {
-          id_chamado: chamado.id,
-          texto: "Denúncia registrada via Whatsapp.",
+    const { error:supabaseError2 } = await supabase
+        .from("registro_chamados")
+        .insert([{
+          id_chamdado: chamado.id,
+          texto: "Denúncia registrada via Whatsapp",
           tipo_acao: "ABERTURA_SISTEMA",
-        },
-      ]);
+        }]);
 
-    if (errorRegistro) throw errorRegistro;
+    if (supabaseError2) {
+      console.error("[ERRO SUPABASE - REGISTROS] ", supabaseError2);
+      return false;
+    }
 
-    console.log(`[SUCESSO] Chamado gravado e histórico gerado!`);
+    console.log(`[SUCESSO] Chamado gravado e histórico gerado.`);
     return true;
   } catch (error) {
-    console.log("Erro ao salvar no banco: ", error.message);
+    console.error("Erro inesperado no createTicket:", error.message);
     return false;
   }
 }
