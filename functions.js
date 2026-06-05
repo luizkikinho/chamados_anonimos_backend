@@ -84,13 +84,24 @@ function extractData(payload) {
 
     const remoteJid = payload.data.remoteJidAlt || payload.data.key.remoteJid;
 
+    let interactiveBtnId = null;
+    try {
+      const paramsJson =
+        payload.data.message?.interactiveResponseMessage
+          ?.nativeFlowResponseMessage?.paramsJson;
+      if (paramsJson) {
+        interactiveBtnId = JSON.parse(paramsJson).id;
+      }
+    } catch (e) {
+      console.log("Erro ao tentar ler o paramsJson: ", e.message);
+    }
+
     const buttonResponse =
       payload.data.message?.buttonsResponseMessage?.selectedButtonId ||
       payload.data.message?.templateButtonReplyMessage?.selectedId ||
       payload.data.message?.listResponseMessage?.singleSelectReply
         ?.selectedRowId ||
-      payload.data.message?.interactiveResponseMessage
-        ?.nativeFlowResponseMessage?.name;
+      interactiveBtnId;
 
     const textResponse =
       payload.data.message?.conversation ||
@@ -98,8 +109,11 @@ function extractData(payload) {
       "";
 
     const finalInteraction = buttonResponse || textResponse;
-
     const phoneNumber = remoteJid.split("@")[0];
+
+    console.log(
+      `[EXTRAÇÃO] Comando recebido de ${phoneNumber}: ${finalInteraction}`,
+    );
 
     return {
       phoneNumber: phoneNumber,
