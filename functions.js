@@ -244,23 +244,34 @@ async function handleConversation(anonymizedId, text) {
   }
 }
 
+// async function getCategories() {
+//   try {
+//     const { data, error } = await supabase.from("categoria").select("id, nome");
+
+//     if (error) throw error;
+
+//     const validIDs = data.map((cat) => String(cat.id));
+//     const formattedCategories = data.map((cat) => `${cat.id} - ${cat.nome}`);
+
+//     return {
+//       rawCategories: data,
+//       validIDs: validIDs,
+//     };
+//   } catch (error) {
+//     console.log("Erro ao capturar categorias:", error.message);
+//     return null;
+//   }
+// }
+
 async function getCategories() {
-  try {
-    const { data, error } = await supabase.from("categoria").select("id, nome");
-
-    if (error) throw error;
-
-    const validIDs = data.map((cat) => String(cat.id));
-    const formattedCategories = data.map((cat) => `${cat.id} - ${cat.nome}`);
-
-    return {
-      rawCategories: data,
-      validIDs: validIDs,
-    };
-  } catch (error) {
-    console.log("Erro ao capturar categorias:", error.message);
-    return null;
-  }
+  console.log("[MOCK DB] Usando categorias falsas de teste");
+  return {
+    rawCategories: [
+      { id: 1, nome: "Assédio (Teste)" },
+      { id: 2, nome: "Fraude (Teste)" },
+    ],
+    validIDs: ["1", "2"],
+  };
 }
 
 async function sendWhatsappMessage(phoneNumber, messageText) {
