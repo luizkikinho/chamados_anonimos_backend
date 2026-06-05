@@ -400,7 +400,7 @@ async function createTicket(empresaId, categoryId, text, ticketProtocolo) {
     .from("chamados")
         .insert([{
           empresaId: empresaId,
-          categoria: categoryId,
+          categoria_id: categoryId,
           texto: text,
           protocol: ticketProtocolo,
           status: "NOVO"
