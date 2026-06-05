@@ -399,7 +399,7 @@ async function createTicket(empresaId, categoryId, text, ticketProtocolo) {
     const { data: chamado, error: supabaseError1 } = await supabase
     .from("chamados")
         .insert([{
-          empresaId: empresaId,
+          empresa_id: empresaId,
           categoria_id: categoryId,
           texto: text,
           protocol: ticketProtocolo,
