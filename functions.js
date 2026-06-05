@@ -416,7 +416,7 @@ async function createTicket(empresaId, categoryId, text, ticketProtocolo) {
     const { error:supabaseError2 } = await supabase
         .from("registro_chamados")
         .insert([{
-          id_chamdado: chamado.id,
+          id_chamado: chamado.id,
           texto: "Denúncia registrada via Whatsapp",
           tipo_acao: "ABERTURA_SISTEMA",
         }]);
