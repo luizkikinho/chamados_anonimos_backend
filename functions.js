@@ -497,7 +497,7 @@ async function getEmpresa(instanceName) {
 
 async function execTimeout(anonId, rawPhoneNumber) {
   try {
-    delete userTimers[annonId];
+    delete userTimers[anonId];
     const stepAnterior = userStates[anonId]?.step;
     delete userStates[anonId];
 
@@ -521,7 +521,7 @@ async function execTimeout(anonId, rawPhoneNumber) {
   }
 }
 
-function defTimeout(annonId, rawPhoneNumber, stepAtual) {
+function defTimeout(anonId, rawPhoneNumber, stepAtual) {
   if (!userStates[anonId]) {
     if (userTimers[anonId]) {
       clearTimeout(userTimers[anonId]);
@@ -533,12 +533,12 @@ function defTimeout(annonId, rawPhoneNumber, stepAtual) {
   const tempoLimite =
     stepAtual === "ESCREVENDO_RELADO" ? TIMEOUT_RELATO : TIMEOUT_PADRAO;
 
-  if (userTimers[annonId]) {
-    clearTimeout(userTimers[annonId]);
+  if (userTimers[anonId]) {
+    clearTimeout(userTimers[anonId]);
   }
 
-  userTimers[annonId] = setTimeout(() => {
-    execTimeout(annonId, rawPhoneNumber);
+  userTimers[anonId] = setTimeout(() => {
+    execTimeout(anonId, rawPhoneNumber);
   }, tempoLimite);
 }
 
