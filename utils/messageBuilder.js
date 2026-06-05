@@ -49,13 +49,12 @@ function buildMenuPayload(numeroDestino) {
 function buildCategoryListPayload(numeroDestino, categorias) {
   const rows = categorias.map((cat) => ({
     title: cat.nome,
-    description: `Relatar ocorrência de ${cat.nome.toLowerCase()}`,
+    //  description: `Relatar ocorrência de ${cat.nome.toLowerCase()}`,
     rowId: `cat_${cat.id}`,
   }));
 
   rows.push({
     title: "❌ Cancelar",
-    description: "Encerrar e limpar sessão",
     rowId: "btn_cancelar",
   });
 
