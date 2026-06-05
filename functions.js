@@ -108,7 +108,7 @@ function extractData(payload) {
 
 function anonymizeUser(phoneNumber) {
   try {
-    const salt = process.env.SALT;
+    const salt = process.env.SALT || "salt_emergencia";
     const fullHash = crypto
       .createHmac("sha256", salt)
       .update(phoneNumber)
@@ -342,40 +342,9 @@ async function sendWhatsappList(phoneNumber, payload) {
 }
 
 async function saveIdentity(anonId, phoneNumber) {
-  try {
-    const { error } = await supabase
-      .from("identidades")
-      .upsert(
-        { remetente_hash: anonId, telefone: phoneNumber },
-        { onConflict: "remetente_hash" },
-      );
-    if (error) throw error;
-    return true;
-  } catch (error) {
-    console.log("Erro ao salvar identidade:", error.message);
-    return false;
-  }
+  console.log(`[MOCK DB] Fingindo salvar identidade: ${anonId}`);
+  return true; // Finge que deu certo
 }
-
-// async function createTicket(anonId, categoryId, text, ticketProtocolo) {
-//   try {
-//     const { error } = await supabase.from("chamados").insert([
-//       {
-//         remetente_hash: anonId,
-//         categoria_id: parseInt(categoryId),
-//         texto: text,
-//         protocolo: ticketProtocolo, // Salvando a string do protocolo gerado
-//       },
-//     ]);
-//     if (error) throw error;
-
-//     console.log(`[DB] Denúncia gravada sob o protocolo: ${ticketProtocolo}`);
-//     return true;
-//   } catch (error) {
-//     console.log("Erro ao criar chamado:", error.message);
-//     return false;
-//   }
-// }
 
 async function createTicket(anonId, categoryId, text, ticketProtocolo) {
   console.log(`\n[MOCK DB] 💾 SIMULANDO GRAVAÇÃO DO CHAMADO NO BANCO...`);
