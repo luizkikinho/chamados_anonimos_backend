@@ -96,9 +96,27 @@ function buildConfirmarRelatoPayload(numeroDestino) {
   };
 }
 
+function buildCopyTicketPayload(numeroDestino, protocolo) {
+  return {
+    number: numeroDestino,
+    options: { delay: 1200, presence: "composing" },
+    text: "🎟️ Guarde seu ticket!",
+    description: `Seu número de protocolo é ${protocolo}. Guarde esse código em um local seguro. Ele será a única forma de consultar o andamento da sua denúncia no futuro`,
+    footer: "Canal de Denúncias Seguro",
+    buttons: [
+      {
+        type: "copy",
+        displayText: "Copiar Protocolo",
+        copyCode: protocolo
+      }
+    ]
+  }
+}
+
 module.exports = {
   buildLgpdPayload,
   buildMenuPayload,
   buildCategoryListPayload,
   buildConfirmarRelatoPayload,
+  buildCopyTicketPayload
 };
