@@ -12,6 +12,7 @@ const {
 const userStates = {};
 
 async function processWebhook(payload) {
+  let empresaId_atual;
   try {
     const data = extractData(payload);
     if (!data) return null;
@@ -23,7 +24,7 @@ async function processWebhook(payload) {
 
     console.log(`\n======================================================`);
     console.log(
-      `[WEBHOOK] 📩 Nova interação de ${rawPhoneNumber} na instância [${instanceName}]`,
+        `[WEBHOOK] 📩 Nova interação de ${rawPhoneNumber} na instância [${instanceName}]`,
     );
     console.log(`[EXTRAÇÃO] Comando recebido: ${text}`);
 
@@ -33,8 +34,6 @@ async function processWebhook(payload) {
       console.log(`[FILTRO] Mensagem ignorada: sem '/start' e sem sessão.`);
       return null;
     }
-
-    let empresaId_atual = null;
 
     if (sessionExists) {
       empresaId_atual = userStates[anonId].empresaId;
@@ -69,13 +68,13 @@ async function processWebhook(payload) {
         } else if (typeof msg === "object") {
           if (msg.type === "buttons") {
             await sendWhatsappButtons(
-              rawPhoneNumber,
-              msg.payloadBuilder(rawPhoneNumber),
+                rawPhoneNumber,
+                msg.payloadBuilder(rawPhoneNumber),
             );
           } else if (msg.type === "list") {
             await sendWhatsappList(
-              rawPhoneNumber,
-              msg.payloadBuilder(rawPhoneNumber),
+                rawPhoneNumber,
+                msg.payloadBuilder(rawPhoneNumber),
             );
           }
         }
@@ -442,7 +441,10 @@ async function getEmpresa(instanceName) {
       .select("id, status")
       .eq("instance_name", instanceName)
       .single();
-    if (error) throw error;
+    if (error) {
+      console.error(error.message);
+      return null;
+    }
 
     if (!data) {
       console.log(
