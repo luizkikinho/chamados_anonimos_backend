@@ -1,7 +1,7 @@
 const botMessages = {
   // Apenas o cabeçalho, pois a lista virá do banco
   WELCOME_HEADER:
-    "Olá! 🛡️ Bem-vindo ao SafeVoice.\n\nInformamos que este é um projeto de pesquisa acadêmica. Todos os dados fornecidos são sigilosos, anonimizados e protegidos de acordo com a Lei Geral de Proteção de Dados (LGPD). Ao prosseguir com o atendimento, você declara ciência e consentimento com estes termos.\n\nPara iniciar seu relato anônimo, escolha uma categoria respondendo com o número:\n\n0 - Cancelar chamado",
+    "Bem vindo ao SafeVoice, uma plataforma de denúncias automatizado!\n\nNão se preocupe, sua identidade não será armazenada.",
 
   // Mensagem genérica para erro de digitação
   OPCAO_INVALIDA:
