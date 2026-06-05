@@ -219,7 +219,7 @@ async function handleConversation(anonymizedId, text) {
 
     // ESTADO 4
     if (session.step === "CONFIRMANDO_RELATO") {
-      if (text === "btn_confirmar_relato") {
+      if (text === "btn_confirmar_denuncia") {
         // 1. Gera o Protocolo Amigável (Ex: DEN-8492-A7F1)
         const hashCurto = crypto.randomBytes(2).toString("hex").toUpperCase();
         const numeroAleatorio = Math.floor(1000 + Math.random() * 9000);
@@ -239,7 +239,7 @@ async function handleConversation(anonymizedId, text) {
 
           // 4. Retorna a mensagem de sucesso e o protocolo
           return [
-            "SUCESSO_ENVIO", // Adicione no messages.js: "Denúncia registrada com sucesso no cofre!"
+            "SUCESSO_ENVIO",
             `Seu número de protocolo é:\n\n*${ticketProtocolo}*\n\nGuarde este código. Ele será a única forma de consultar o andamento da sua denúncia no futuro.`,
           ];
         } else {
