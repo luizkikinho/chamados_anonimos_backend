@@ -9,6 +9,7 @@ const {
   buildConfirmarRelatoPayload,
 } = require("./utils/messageBuilder");
 const { type } = require("os");
+const { ifError } = require("assert");
 
 const userStates = {};
 
@@ -16,6 +17,8 @@ async function processWebhook(payload) {
   // Extrai os dados básicos
   const data = extractData(payload);
   if (!data) return null;
+
+  const instanceName = payload.instance;
 
   console.log(`\n======================================================`);
   console.log(`[WEBHOOK] 📩 Nova interação recebida de ${data.phoneNumber}`);
@@ -36,6 +39,19 @@ async function processWebhook(payload) {
     return null;
   }
 
+  // Detecta qual empresa pertence o número e salva o ID no userStates
+  let empresaId_atual = null;
+
+  if (sessionExists) {
+    empresaId_atual = userStates[anonId].empresaId;
+  } else {
+    empresaId_atual = await getEmpresa(instanceName);
+    if (!empresaId_atual) {
+      console.log(`[ERRO] Empresa não encontrada ou inativa. Abortando.`);
+      return null;
+    }
+  }
+
   // 3. Se passou no filtro, garante a identidade no banco e inicializa/reseta a sessão
   await saveIdentity(anonId, rawPhoneNumber);
 
@@ -46,6 +62,7 @@ async function processWebhook(payload) {
       validIDs: [],
       rawPhone: rawPhoneNumber,
       erros: 0,
+      empresaId: empresaId_atual,
     };
   }
 
@@ -179,7 +196,7 @@ async function handleConversation(anonymizedId, text) {
     // ESTADO 2
     if (session.step === "MENU_PRINCIPAL") {
       if (text === "btn_nova_denuncia") {
-        const categoryData = await getCategories();
+        const categoryData = await getCategories(session.empresaId);
         if (!categoryData) return "ERRO_BANCO";
 
         session.validIDs = categoryData.validIDs;
@@ -242,7 +259,7 @@ async function handleConversation(anonymizedId, text) {
 
         // 2. Tenta salvar no Supabase (Precisamos atualizar a createTicket lá embaixo!)
         const success = await createTicket(
-          anonymizedId,
+          session.empresaId,
           session.categoryId,
           session.relatoProvisorio,
           ticketProtocolo,
@@ -279,35 +296,43 @@ async function handleConversation(anonymizedId, text) {
   }
 }
 
-// async function getCategories() {
-//   try {
-//     const { data, error } = await supabase.from("categoria").select("id, nome");
-
-//     if (error) throw error;
-
-//     const validIDs = data.map((cat) => String(cat.id));
-//     const formattedCategories = data.map((cat) => `${cat.id} - ${cat.nome}`);
-
-//     return {
-//       rawCategories: data,
-//       validIDs: validIDs,
-//     };
-//   } catch (error) {
-//     console.log("Erro ao capturar categorias:", error.message);
-//     return null;
-//   }
-// }
-
 async function getCategories() {
-  console.log("[MOCK DB] Usando categorias falsas de teste");
-  return {
-    rawCategories: [
-      { id: 1, nome: "Assédio (Teste)" },
-      { id: 2, nome: "Fraude (Teste)" },
-    ],
-    validIDs: ["1", "2"],
-  };
+  try {
+    const { data, error } = await supabase
+      .from("categorias")
+      .select("id, name")
+      .eq("empresa_id", empresaId)
+      .eq("active", true);
+
+    if (error) throw error;
+
+    const validIDs = data.map((cat) => String(cat.id));
+
+    const rawCategories = data.map((cat) => ({
+      id: cat.id,
+      nome: cat.name,
+    }));
+
+    return {
+      rawCategories: rawCategories,
+      validIDs: validIDs,
+    };
+  } catch (error) {
+    console.log("Erro ao capturar categorias:", error.message);
+    return null;
+  }
 }
+
+// async function getCategories() {
+//   console.log("[MOCK DB] Usando categorias falsas de teste");
+//   return {
+//     rawCategories: [
+//       { id: 1, nome: "Assédio (Teste)" },
+//       { id: 2, nome: "Fraude (Teste)" },
+//     ],
+//     validIDs: ["1", "2"],
+//   };
+// }
 
 async function sendWhatsappMessage(phoneNumber, messageText) {
   try {
@@ -392,14 +417,74 @@ async function saveIdentity(anonId, phoneNumber) {
   return true; // Finge que deu certo
 }
 
-async function createTicket(anonId, categoryId, text, ticketProtocolo) {
-  console.log(`\n[MOCK DB] 💾 SIMULANDO GRAVAÇÃO DO CHAMADO NO BANCO...`);
-  console.log(` ├─ Protocolo Gerado: ${ticketProtocolo}`);
-  console.log(` ├─ Hash do Denunciante: ${anonId}`);
-  console.log(` ├─ ID da Categoria: ${categoryId}`);
-  console.log(` └─ Texto do Relato: "${text}"\n`);
+async function createTicket(empresaId, categoryId, text, ticketProtocolo) {
+  try {
+    console.log(`[DB] Gravando chamado ${ticketProtocolo}...`);
 
-  return true; // Finge para a máquina de estados que deu tudo certo
+    const { data: chamado, error: erroChamado } = await supabase
+      .from("chamados")
+      .insert([
+        {
+          empresa_id: empresaId,
+          categoria_id: categoryId,
+          texto: text,
+          protocol: ticketProtocolo,
+          status: "NOVO",
+        },
+      ])
+      .select("id")
+      .single();
+
+    if (errorChamado) throw errorChamado;
+
+    const { error: erroRegistro } = await supabase
+      .from("registro_chamados")
+      .insert([
+        {
+          id_chamado: chamado.id,
+          texto: "Denúncia registrada via Whatsapp.",
+          tipo_acao: "ABERTURA_SISTEMA",
+        },
+      ]);
+
+    if (errorRegistro) throw errorRegistro;
+
+    console.log(`[SUCESSO] Chamado gravado e histórico gerado!`);
+    return true;
+  } catch (error) {
+    console.log("Erro ao salvar no banco: ", error.message);
+    return false;
+  }
+}
+
+async function getEmpresa(instanceName) {
+  try {
+    const { data, error } = await supabase
+      .from("empresas")
+      .select("id, status")
+      .eq("instance_name", instanceName)
+      .single();
+    if (error) throw error;
+
+    if (!data) {
+      console.log(
+        `[ROTEAMENTO] Nenhuma empresa encontrada para a instância: ${instanceName}`,
+      );
+      return null;
+    }
+
+    if (data.status === false) {
+      console.log(
+        `[ROTEAMENTO] Instância ${instanceName} pertence a uma empresa inativa.`,
+      );
+      return null;
+    }
+
+    return data.id;
+  } catch (error) {
+    console.log("Erro ao buscar empresa: ", error.message);
+    return null;
+  }
 }
 
 module.exports = { processWebhook, getCategories };
