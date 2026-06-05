@@ -44,6 +44,7 @@ async function processWebhook(payload) {
       categoryId: null,
       validIDs: [],
       rawPhone: rawPhoneNumber,
+      erros: 0,
     };
   }
 
@@ -77,6 +78,10 @@ async function processWebhook(payload) {
 
 function extractData(payload) {
   try {
+    if (payload.data.key.fromMe) {
+      return null;
+    }
+
     const remoteJid = payload.data.remoteJidAlt || payload.data.key.remoteJid;
 
     const buttonResponse =
@@ -147,6 +152,11 @@ async function handleConversation(anonymizedId, text) {
       } else if (text === "btn_ler_termos") {
         return "TERMOS_LGPD_COMPLETOS";
       } else {
+        session.erros += 1;
+        if (session.erros >= 3) {
+          delete userStates[anonymizedId];
+          return "LIMITE_ERROS";
+        }
         return "POR_FAVOR_USE_OS_BOTOES";
       }
     }
@@ -182,6 +192,11 @@ async function handleConversation(anonymizedId, text) {
           session.step = "ESCREVENDO_RELATO";
           return "PEDIR_RELATO";
         }
+      }
+      session.erros += 1;
+      if (session.erros >= 3) {
+        delete userStates[anonymizedId];
+        return "LIMITE_ERROS";
       }
       return "POR_FAVOR_USE_A_LISTA";
     }
@@ -235,6 +250,11 @@ async function handleConversation(anonymizedId, text) {
         session.step = "ESCREVENDO_RELATO";
         return "PEDIR_RELATO_NOVAMENTE";
       } else {
+        session.erros += 1;
+        if (session.erros >= 3) {
+          delete userStates[anonymizedId];
+          return "LIMITE_ERROS";
+        }
         return "POR_FAVOR_USE_OS_BOTOES";
       }
     }
