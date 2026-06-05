@@ -14,84 +14,56 @@ const { ifError } = require("assert");
 const userStates = {};
 
 async function processWebhook(payload) {
-  // Extrai os dados básicos
-  const data = extractData(payload);
-  if (!data) return null;
+  try {
+    const data = extractData(payload);
+    if (!data) return null;
 
-  const instanceName = payload.instance;
+    const instanceName = payload.instance;
+    const rawPhoneNumber = data.phoneNumber;
+    const text = data.text.trim().toLowerCase();
+    const anonId = anonymizeUser(rawPhoneNumber);
 
-  console.log(`\n======================================================`);
-  console.log(`[WEBHOOK] 📩 Nova interação recebida de ${data.phoneNumber}`);
-
-  const rawPhoneNumber = data.phoneNumber;
-  const text = data.text.trim().toLowerCase();
-
-  // 1. Gera o anonId (operação barata em memória) para verificar sessão
-  const anonId = anonymizeUser(rawPhoneNumber);
-
-  // 2. FILTRO DE ATIVAÇÃO: Só processa se for /start ou se já houver conversa ativa
-  const sessionExists = !!userStates[anonId];
-
-  if (text !== "/start" && !sessionExists) {
+    console.log(`\n======================================================`);
     console.log(
-      `[FILTRO] Mensagem de ${rawPhoneNumber} ignorada: sem '/start' e sem sessão.`,
+      `[WEBHOOK] 📩 Nova interação de ${rawPhoneNumber} na instância [${instanceName}]`,
     );
-    return null;
-  }
+    console.log(`[EXTRAÇÃO] Comando recebido: ${text}`);
 
-  // Detecta qual empresa pertence o número e salva o ID no userStates
-  let empresaId_atual = null;
+    const sessionExists = !!userStates[anonId];
 
-  if (sessionExists) {
-    empresaId_atual = userStates[anonId].empresaId;
-  } else {
-    empresaId_atual = await getEmpresa(instanceName);
-    if (!empresaId_atual) {
-      console.log(`[ERRO] Empresa não encontrada ou inativa. Abortando.`);
+    if (text !== "/start" && !sessionExists) {
+      console.log(`[FILTRO] Mensagem ignorada: sem '/start' e sem sessão.`);
       return null;
     }
-  }
 
-  // 3. Se passou no filtro, garante a identidade no banco e inicializa/reseta a sessão
-  await saveIdentity(anonId, rawPhoneNumber);
+    let empresaId_atual = null;
 
-  if (text === "/start" || !userStates[anonId]) {
-    userStates[anonId] = {
-      step: 0,
-      categoryId: null,
-      validIDs: [],
-      rawPhone: rawPhoneNumber,
-      erros: 0,
-      empresaId: empresaId_atual,
-    };
-  }
+    if (sessionExists) {
+      empresaId_atual = userStates[anonId].empresaId;
+    } else {
+      empresaId_atual = await getEmpresa(instanceName);
 
-  // 4. Gerencia a conversa e recebe o texto ou a chave
-  const actionResult = await handleConversation(anonId, data.text);
-
-  const actions = Array.isArray(actionResult) ? actionResult : [actionResult];
-
-  for (const action of actions) {
-    if (!action) continue;
-    if (action.type === "buttons") {
-      const payload = action.payloadBuilder(rawPhoneNumber);
-      await sendWhatsappButtons(rawPhoneNumber, payload);
-    } else if (action.type === "list") {
-      const payload = action.payloadBuilder(rawPhoneNumber);
-      await sendWhatsappList(rawPhoneNumber, payload);
-    } else if (typeof action === "string") {
-      const responseText = botMessages[action] || action;
-      if (responseText) {
-        await sendWhatsappMessage(rawPhoneNumber, responseText);
+      if (!empresaId_atual) {
+        console.log("[ERRO] Empresa não encontrada ou inativa. Abortando.");
+        return null;
       }
     }
-  }
 
-  return {
-    anonId,
-    action: typeof actionResult === "string" ? actionResult : actionResult.type,
-    originalText: data.text,
-  };
+    if (text === "/start" || !userStates[anonId]) {
+      userStates[anonId] = {
+        step: 0,
+        categoryId: null,
+        validIDs: [],
+        rawPhone: rawPhoneNumber,
+        erros: 0,
+        empresaId: empresaId_atual,
+      };
+    }
+
+    await handleConversation(userStates[anonId], text);
+  } catch (error) {
+    console.error("[ERRO GRAVE NO WEBHOOK]:", error);
+  }
 }
 
 function extractData(payload) {
