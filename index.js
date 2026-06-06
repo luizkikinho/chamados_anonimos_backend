@@ -15,7 +15,7 @@ app.post("/ping", (req, res) => {
   res.status(200).send("pong");
 });
 
-app.post("/deploy-secreto-charleaux", (req, res) => {
+app.post("/deploy-hook", (req, res) => {
   console.log("[DEPLOY] Recebido sinal do GitHub. Baixando atualizações...");
   res.status(200).send("Deploy iniciado.");
   exec(
