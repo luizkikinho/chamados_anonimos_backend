@@ -15,15 +15,15 @@ app.post("/ping", (req, res) => {
   res.status(200).send("pong");
 });
 
-app.post("/deploy-hook", (req, res) => {
-  console.log("[DEPLOY] Recebido sinal do Github. Baixando atualizações...");
-  res.status(200).send("Deploy iniciado");
+app.post("/deploy-secreto-charleaux", (req, res) => {
+  console.log("[DEPLOY] Recebido sinal do GitHub. Baixando atualizações...");
+  res.status(200).send("Deploy iniciado.");
   exec(
     "git pull origin main && pm2 restart whatsapp-bot",
     (err, stdout, stderr) => {
       if (err) {
         console.error(`[DEPLOY ERRO] ${err}`);
-        return res.status(500).send("Error occured.");
+        return;
       }
       console.log(`[DEPLOY SUCESSO] Sistema atualizado e reiniciado!`);
       if (stdout) console.log(`[OUTPUT] ${stdout}`);
