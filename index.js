@@ -20,7 +20,7 @@ app.post("/deploy-hook", (req, res) => {
   res.status(200).send("Deploy iniciado");
   exec(
     "git pull origin main && pm2 restart whatsapp-bot",
-    (error, stdout, stderr) => {
+    (err, stdout, stderr) => {
       if (err) {
         console.error(`[DEPLOY ERRO] ${err}`);
         return res.status(500).send("Error occured.");
