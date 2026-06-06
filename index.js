@@ -1,7 +1,7 @@
 const express = require("express");
 const { processWebhook } = require("./functions");
 const { exec } = require("child_process");
-const app = express();
+const app = express(); // Ativa o servidor
 
 app.use(express.json());
 
