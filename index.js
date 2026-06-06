@@ -1,5 +1,6 @@
 const express = require("express");
 const { processWebhook } = require("./functions");
+const { exec } = require("child_process");
 const app = express(); // inicializa o servidor
 
 app.use(express.json());
@@ -12,6 +13,22 @@ app.post("/webhook", async (req, res) => {
 app.post("/ping", (req, res) => {
   console.log("[KEEP-ALIVE] Recebido o ping de rotina.");
   res.status(200).send("pong");
+});
+
+app.post("/deploy-hook", (req, res) => {
+  console.log("[DEPLOY] Recebido sinal do Github. Baixando atualizações...");
+  res.status(200).send("Deploy iniciado");
+  exec(
+    "git pull origin main && pm2 restart whatsapp-bot",
+    (error, stdout, stderr) => {
+      if (err) {
+        console.error(`[DEPLOY ERRO] ${err}`);
+        return res.status(500).send("Error occured.");
+      }
+      console.log(`[DEPLOY SUCESSO] Sistema atualizado e reiniciado!`);
+      if (stdout) console.log(`[OUTPUT] ${stdout}`);
+    },
+  );
 });
 
 const PORT = 8000;
