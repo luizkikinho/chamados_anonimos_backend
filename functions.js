@@ -218,6 +218,19 @@ async function handleConversation(anonymizedId, text) {
                     payloadBuilder: (numero) =>
                         buildCategoryListPayload(numero, categoryData.rawCategories),
                 };
+            } else if (text === "btn_consultar_ticket") {
+                session.step = "DIGITANDO_PROTOCOLO";
+                return "PEDIR_PROTOCOLO_CONSULTA";
+            } else if (text === "btn_encerrar") {
+                delete userStates[anonymizedId];
+                return "MENSAGEM_DESPEDIDA";
+            } else {
+                session.erros += 1;
+                if (session.erros >= 3) {
+                    delete userStates[anonymizedId];
+                    return "LIMITE_ERROS";
+                }
+                return "POR_FAVOR_USE_OS_BOTOES";
             }
         }
 
