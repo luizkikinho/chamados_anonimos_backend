@@ -645,7 +645,9 @@ function defTimeout(anonId, rawPhoneNumber, stepAtual) {
     }
 
     userTimers[anonId] = setTimeout(() => {
-        execTimeout(anonId, rawPhoneNumber);
+        execTimeout(anonId, rawPhoneNumber).catch((err) => {
+            console.error(`[ERRO TIMEOUT] Falha ao executar limpeza para ${rawPhoneNumber}: `, err.message);
+        });
     }, tempoLimite);
 }
 
