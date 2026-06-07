@@ -1,11 +1,11 @@
 /**
- * @param {string} numeroDestino
+ * @param {string} phoneNumber
  * @returns {object}
  */
 
-function buildLgpdPayload(numeroDestino) {
+function buildLgpdPayload(phoneNumber) {
   return {
-    number: numeroDestino,
+    number: phoneNumber,
     title: "📋 Antes de continuar, leia os Termos de Uso!",
     description:
       "Para garantir o seu anonimato e cumprir com a LGPD, precisamos que você confirme nossos termos de uso antes de prosseguir.",
@@ -25,13 +25,18 @@ function buildLgpdPayload(numeroDestino) {
   };
 }
 
-function buildMenuPayload(numeroDestino) {
+function buildMenuPayload(phoneNumber) {
   return {
-    number: numeroDestino,
+    number: phoneNumber,
     title: "MENU PRINCIPAL",
     description: "Como podemos ajudar?",
     footer: "Selecione uma opção para continuar.",
     buttons: [
+      {
+        type: "reply",
+        displayText: "➕ Nova Denúncia",
+        id: "btn_nova_denuncia",
+      },
       {
         type: "reply",
         displayText: "🔎 Consultar Ticket",
@@ -39,14 +44,14 @@ function buildMenuPayload(numeroDestino) {
       },
       {
         type: "reply",
-        displayText: "➕ Nova Denúncia",
-        id: "btn_nova_denuncia",
-      },
+        displayText: "❌ Encerrar",
+        id: "btn_encerrar"
+      }
     ],
   };
 }
 
-function buildCategoryListPayload(numeroDestino, categorias) {
+function buildCategoryListPayload(phoneNumber, categorias) {
   const rows = categorias.map((cat) => ({
     title: cat.nome,
     //  description: `Relatar ocorrência de ${cat.nome.toLowerCase()}`,
@@ -59,7 +64,7 @@ function buildCategoryListPayload(numeroDestino, categorias) {
   });
 
   return {
-    number: numeroDestino,
+    number: phoneNumber,
     title: "📂 Categorias de Denúncia",
     description:
       "Por favor, selecione o tema que melhor descreve o seu relato.",
@@ -74,9 +79,9 @@ function buildCategoryListPayload(numeroDestino, categorias) {
   };
 }
 
-function buildConfirmarRelatoPayload(numeroDestino) {
+function buildConfirmarRelatoPayload(phoneNumber) {
   return {
-    number: numeroDestino,
+    number: phoneNumber,
     title: "✅ Confirme se está tudo certo",
     description:
       "Confira se o relato está tudo certo e clique em ```Confirmar``` para salvar sua denúncia.",
@@ -96,9 +101,9 @@ function buildConfirmarRelatoPayload(numeroDestino) {
   };
 }
 
-function buildCopyTicketPayload(numeroDestino, protocolo) {
+function buildCopyTicketPayload(phoneNumber, protocolo) {
   return {
-    number: numeroDestino,
+    number: phoneNumber,
     options: { delay: 1200, presence: "composing" },
     title: "🎟️ Guarde seu ticket!",
     description: `Seu número de protocolo é ${protocolo}. Guarde esse código em um local seguro. Ele será a única forma de consultar o andamento da sua denúncia no futuro`,
@@ -113,10 +118,37 @@ function buildCopyTicketPayload(numeroDestino, protocolo) {
   }
 }
 
+function buildPosRelatoButtonsPayload(phoneNumber) {
+  return {
+    number: phoneNumber,
+    options: { delay: 1500, presence: "composing" },
+    title: "O que fazer agora?",
+    footer: "Canal de Denúncias Seguro",
+    buttons: [
+      {
+        type: "reply",
+        displayText: "➕ Nova Denúncia",
+        id: "btn_nova_denuncia",
+      },
+      {
+        type: "reply",
+        displayText: "🔎 Consultar Ticket",
+        id: "btn_consultar_ticket",
+      },
+      {
+        type: "reply",
+        displayText: "❌ Encerrar",
+        id: "btn_encerrar"
+      }
+    ]
+  }
+}
+
 module.exports = {
   buildLgpdPayload,
   buildMenuPayload,
   buildCategoryListPayload,
   buildConfirmarRelatoPayload,
-  buildCopyTicketPayload
+  buildCopyTicketPayload,
+  buildPosRelatoButtonsPayload
 };
