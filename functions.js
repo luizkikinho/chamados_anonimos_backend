@@ -193,7 +193,13 @@ async function handleConversation(anonymizedId, text) {
                     payloadBuilder: buildMenuPayload,
                 };
             } else if (text === "btn_ler_termos") {
-                return "TERMOS_LGPD_COMPLETOS";
+                return [
+                    "TERMOS_LGPD_COMPLETOS",
+                    {
+                        type: "buttons",
+                        payloadBuilder: buildLgpdPayload()
+                    }
+                ];
             } else {
                 session.erros += 1;
                 if (session.erros >= 3) {
