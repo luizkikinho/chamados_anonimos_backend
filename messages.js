@@ -25,9 +25,12 @@ const botMessages = {
 
     POR_FAVOR_USE_OS_BOTOES:
         "👇 Por favor, interaja clicando nos *botões* da mensagem acima para que possamos continuar.",
-  
+
     POR_FAVOR_USE_A_LISTA:
         "📋 Por favor, selecione uma opção clicando no *menu* acima em vez de digitar.",
+
+    TICKET_NAO_ENCONTRADO:
+        "⚠️ *Protocolo não encontrado*\n\nNão localizamos nenhum chamado com esse código. Verifique se você digitou corretamente (incluindo o 'DEN-') e tente novamente.",
 
     LIMITE_ERROS:
         "🔒 *Sessão Encerrada por Segurança*\n\nComo não recebemos a resposta no formato esperado, encerramos este atendimento automaticamente para proteger sua navegação. Para recomeçar, basta enviar uma nova mensagem.",

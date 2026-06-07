@@ -234,7 +234,7 @@ async function handleConversation(anonymizedId, text) {
             }
         }
 
-        // ESTADO 2.5
+        // AO CLICAR NO BOTÃO "NOVA DENÚNCIA"
         if (session.step === "SELECIONANDO_CATEGORIA") {
             if (text === "btn_cancelar") {
                 delete userStates[anonymizedId];
@@ -255,6 +255,39 @@ async function handleConversation(anonymizedId, text) {
                 return "LIMITE_ERROS";
             }
             return "POR_FAVOR_USE_A_LISTA";
+        }
+
+        if (session.step === "DIGITANDO_PROTOCOLO") {
+            const userTicket = text.trim().toUpperCase();
+            const registros = await getTicket(userTicket);
+            if (!registros) return "ERRO_BANCO";
+
+            if (registros.length === 0) {
+                session.erros += 1;
+                if (session.erros >= 3) {
+                    delete userStates[anonymizedId];
+                    return "LIMITE_ERROS";
+                }
+                return "TICKET_NAO_ENCONTRADO";
+            }
+
+            let mensagemRetorno = `🔎 *Consulta do Protocolo: ${userTicket}*\n\n`;
+
+            registros.forEach((registro, index) => {
+                const dataFormatada = new Date(registro.data_registro).toLocaleDateString('pt-BR');
+                mensagemRetorno += `*Atualização ${index + 1} (${dataFormatada}):*\n`;
+                mensagemRetorno += `${registro.texto}\n\n`
+            });
+
+            session.step = "POS_RELATO";
+
+            return [
+                mensagemRetorno,
+                {
+                    type: "buttons",
+                    payloadBuilder: (numero) => buildPosRelatoButtonsPayload(numero)
+                }
+            ];
         }
 
         // ESTADO 3
@@ -386,6 +419,59 @@ async function getCategories(empresaId) {
     }
 }
 
+async function getEmpresa(instanceName) {
+    try {
+        const {data, error} = await supabase
+            .from("empresas")
+            .select("id, status")
+            .eq("instance_name", instanceName)
+            .single();
+        if (error) {
+            console.error(error.message);
+            return null;
+        }
+
+        if (!data) {
+            console.log(
+                `[ROTEAMENTO] Nenhuma empresa encontrada para a instância: ${instanceName}`,
+            );
+            return null;
+        }
+
+        if (data.status === false) {
+            console.log(
+                `[ROTEAMENTO] Instância ${instanceName} pertence a uma empresa inativa.`,
+            );
+            return null;
+        }
+
+        return data.id;
+    } catch (error) {
+        console.log("Erro ao buscar empresa: ", error.message);
+        return null;
+    }
+}
+
+async function getTicket(protocol) {
+    try {
+        const {data, error} = await supabase
+            .from("registro_chamados")
+            .select(`
+                *,
+                chamados!inner(protocol)
+            `)
+            .eq(`chamados.protocol`, protocol)
+        if (error) {
+            console.error("[ERRO TICKET DB] Erro ao buscar registros: ", error.message);
+            return null;
+        }
+        return data;
+    } catch (e) {
+        console.error("[ERRO EXCEÇÃO TICKET] ", e.message);
+        return null;
+    }
+}
+
 async function sendWhatsappMessage(phoneNumber, messageText) {
     try {
         const endpoint = `${process.env.EVOLUTION_API_URL}/message/sendText/${process.env.EVOLUTION_INSTANCE_NAME}`;
@@ -507,39 +593,6 @@ async function createTicket(empresaId, categoryId, text, ticketProtocolo) {
     } catch (error) {
         console.error("Erro inesperado no createTicket:", error.message);
         return false;
-    }
-}
-
-async function getEmpresa(instanceName) {
-    try {
-        const {data, error} = await supabase
-            .from("empresas")
-            .select("id, status")
-            .eq("instance_name", instanceName)
-            .single();
-        if (error) {
-            console.error(error.message);
-            return null;
-        }
-
-        if (!data) {
-            console.log(
-                `[ROTEAMENTO] Nenhuma empresa encontrada para a instância: ${instanceName}`,
-            );
-            return null;
-        }
-
-        if (data.status === false) {
-            console.log(
-                `[ROTEAMENTO] Instância ${instanceName} pertence a uma empresa inativa.`,
-            );
-            return null;
-        }
-
-        return data.id;
-    } catch (error) {
-        console.log("Erro ao buscar empresa: ", error.message);
-        return null;
     }
 }
 
